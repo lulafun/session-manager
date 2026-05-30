@@ -11,13 +11,19 @@ type ForkOptions struct {
 	CodexBin       string
 	TargetProvider string
 	Model          string
+	WorkDir        string
+	Last           bool
 	DryRun         bool
 	ExtraArgs      []string
 }
 
 func BuildForkCommand(sessionID string, opts ForkOptions) ([]string, error) {
-	if strings.TrimSpace(sessionID) == "" {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" && !opts.Last {
 		return nil, fmt.Errorf("session id is required")
+	}
+	if sessionID != "" && opts.Last {
+		return nil, fmt.Errorf("pass either a session id or --last, not both")
 	}
 	codexBin := opts.CodexBin
 	if codexBin == "" {
@@ -30,8 +36,16 @@ func BuildForkCommand(sessionID string, opts ForkOptions) ([]string, error) {
 	if opts.Model != "" {
 		args = append(args, "-m", opts.Model)
 	}
+	if opts.WorkDir != "" {
+		args = append(args, "-C", opts.WorkDir)
+	}
+	if opts.Last {
+		args = append(args, "--last")
+	}
 	args = append(args, opts.ExtraArgs...)
-	args = append(args, sessionID)
+	if sessionID != "" {
+		args = append(args, sessionID)
+	}
 	return args, nil
 }
 

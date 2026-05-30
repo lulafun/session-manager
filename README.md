@@ -89,7 +89,11 @@ Fork/copy a session to another model provider:
 ```sh
 session-manager fork -to-provider zaixiao_s2a -dry-run <session-id-or-rollout-path>
 session-manager fork -to-provider zaixiao_s2a <session-id-or-rollout-path>
+session-manager fork -to-provider zaixiao_s2a -C /Users/lula/code/Tools/session-manager <session-id-or-rollout-path>
+session-manager fork -to-provider zaixiao_s2a --last -C /Users/lula/code/Tools/session-manager
 ```
+
+`fork` can pass a target working directory to Codex with `-C`, `--cd`, or `--dir`. Use `--last` when you want Codex to fork the most recent session without resolving the session id yourself. These directory controls are for the CLI path; the TUI launches Codex's own interactive fork flow.
 
 Delete and recover sessions:
 
@@ -114,6 +118,8 @@ Useful flags:
 - `-include-subagents`: include subagent/internal non-root sessions
 - `-to-provider`: target provider for fork/copy
 - `-model`: optional model override for the forked session
+- `-C`, `--cd`, `--dir`: target working directory for a forked session
+- `--last`: fork the most recent Codex session
 - `-dry-run`: print the operation without running it
 - `-trash-root`: reversible delete directory, default `~/.codex/session-manager-trash`
 

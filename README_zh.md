@@ -87,7 +87,11 @@ session-manager inspect -json <session-id-or-rollout-path>
 ```sh
 session-manager fork -to-provider zaixiao_s2a -dry-run <session-id-or-rollout-path>
 session-manager fork -to-provider zaixiao_s2a <session-id-or-rollout-path>
+session-manager fork -to-provider zaixiao_s2a -C /Users/lula/code/Tools/session-manager <session-id-or-rollout-path>
+session-manager fork -to-provider zaixiao_s2a --last -C /Users/lula/code/Tools/session-manager
 ```
+
+`fork` 可以通过 `-C`、`--cd` 或 `--dir` 把目标工作目录传给 Codex。需要复制最近一个 session 时可以使用 `--last`，不必先手动解析 session id。这些目录控制能力只面向 CLI；TUI 会进入 Codex 自己的交互 fork 流程。
 
 删除和恢复 session：
 
@@ -112,6 +116,8 @@ session-manager recover <session-id-or-trashed-rollout-path>
 - `-include-subagents`：包含 subagent/internal 非根 session
 - `-to-provider`：fork/copy 的目标 provider
 - `-model`：fork session 时可选的 model override
+- `-C`、`--cd`、`--dir`：fork 后的目标工作目录
+- `--last`：fork 最近一个 Codex session
 - `-dry-run`：只打印操作，不真正执行
 - `-trash-root`：可恢复删除目录，默认 `~/.codex/session-manager-trash`
 

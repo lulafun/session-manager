@@ -573,28 +573,57 @@ func runFork(args []string) error {
 	fs.StringVar(&cfg.root, "root", DefaultSessionsRoot(), "Codex sessions directory to read")
 	targetProvider := fs.String("to-provider", "", "target model provider id for the fork")
 	model := fs.String("model", "", "target model override")
+	workDir := fs.String("C", "", "target working directory for the forked Codex session")
+	workDirLong := fs.String("cd", "", "target working directory for the forked Codex session")
+	workDirAlias := fs.String("dir", "", "target working directory for the forked Codex session")
+	last := fs.Bool("last", false, "fork the most recent session through codex --last")
 	codexBin := fs.String("codex", "codex", "codex executable")
 	dryRun := fs.Bool("dry-run", false, "print the codex command without running it")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	target := fs.Arg(0)
-	if target == "" {
+	if target == "" && !*last {
 		return fmt.Errorf("fork requires a session id or rollout path")
-	}
-	session, err := findSession(cfg.root, target)
-	if err != nil {
-		return err
 	}
 	if *targetProvider == "" {
 		return fmt.Errorf("-to-provider is required")
 	}
-	return RunForkCommand(session.ID, ForkOptions{
+	targetWorkDir, err := coalesceWorkDir(*workDir, *workDirLong, *workDirAlias)
+	if err != nil {
+		return err
+	}
+	sessionID := ""
+	if target != "" {
+		session, err := findSession(cfg.root, target)
+		if err != nil {
+			return err
+		}
+		sessionID = session.ID
+	}
+	return RunForkCommand(sessionID, ForkOptions{
 		CodexBin:       *codexBin,
 		TargetProvider: *targetProvider,
 		Model:          *model,
+		WorkDir:        targetWorkDir,
+		Last:           *last,
 		DryRun:         *dryRun,
 	})
+}
+
+func coalesceWorkDir(values ...string) (string, error) {
+	var out string
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if out != "" && out != value {
+			return "", fmt.Errorf("pass only one target directory")
+		}
+		out = value
+	}
+	return out, nil
 }
 
 func runTrash(args []string) error {
@@ -863,6 +892,9 @@ Useful flags:
   -json       machine-readable output for list/providers/projects/inspect
   -to-provider target provider for fork and interactive fork
   -model      optional model override for forked sessions
+  -C, -cd, -dir
+              target working directory for fork
+  -last       fork the most recent Codex session
   -dry-run    print fork command instead of running it
   -trash-root directory for reversible deletes (default ~/.codex/session-manager-trash)
 

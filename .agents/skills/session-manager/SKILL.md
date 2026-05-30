@@ -24,6 +24,7 @@ Important implications:
 - A session belongs to a provider because its rollout metadata says so; provider is not just a UI filter.
 - Native Codex resume behavior may filter by current provider/account, so sessions from other providers can be hard to discover through the normal UI.
 - Cross-provider copying should use `codex fork -c model_provider=<provider> <session-id>` through `session-manager fork`, because that lets Codex create a valid new session instead of manually editing JSONL metadata.
+- Cross-project copying should pass a target working directory through `session-manager fork -C <dir> ...`; do not edit the rollout `cwd` metadata by hand.
 - Deleting should move the rollout file out of `~/.codex/sessions` while preserving its relative path. Do not remove files directly and do not edit JSONL in place.
 - Codex may keep separate local state/index data. `session-manager` does not edit that database; it operates on rollout files and relies on Codex to validate/repair stale rollout paths when sessions are restored or discovered again.
 - Some rollout files are subagent/internal child sessions. They are useful for debugging but should usually be hidden from user-facing parent-session views.
@@ -61,6 +62,8 @@ go install github.com/lulafun/session-manager@latest
 - User asks "find a session" -> run `session-manager list -query <text> -json`.
 - User asks "show details" -> run `session-manager inspect -json <session>`.
 - User asks "copy/fork to provider X" -> run `session-manager fork -to-provider X -dry-run <session>` first, then execute if confirmed or explicitly requested.
+- User asks "copy/fork current/latest session to project DIR" -> run `session-manager fork -to-provider <current-or-target-provider> --last -C DIR -dry-run` first, then execute if confirmed or explicitly requested.
+- User asks "copy/fork session S to project DIR" -> run `session-manager fork -to-provider <current-or-target-provider> -C DIR -dry-run S` first, then execute if confirmed or explicitly requested.
 - User asks "delete/remove a session" -> run `session-manager trash -dry-run <session>` first, then execute if confirmed or explicitly requested.
 - User asks "restore/recover" -> run `session-manager recover -dry-run <session>` first when possible.
 
@@ -97,6 +100,8 @@ go install github.com/lulafun/session-manager@latest
 
    ```sh
    session-manager fork -to-provider <provider> -dry-run <session-id-or-rollout-path>
+   session-manager fork -to-provider <provider> -C <target-dir> -dry-run <session-id-or-rollout-path>
+   session-manager fork -to-provider <provider> --last -C <target-dir> -dry-run
    session-manager fork -to-provider <provider> <session-id-or-rollout-path>
    ```
 
@@ -118,10 +123,16 @@ For read-only discovery:
 I will inspect the local session index with session-manager and use JSON output so the result is machine-readable.
 ```
 
-For fork/copy:
+For provider fork/copy:
 
 ```text
 I found session <id> under provider <source-provider>. I will dry-run a fork to <target-provider> first, then run the real fork only after the command shape is correct.
+```
+
+For project fork/copy:
+
+```text
+I will dry-run a fork into <target-dir> using Codex's -C working-directory flag. I will not edit the rollout JSONL cwd manually.
 ```
 
 For delete:
@@ -145,6 +156,8 @@ The project selector matches multiple projects. I need the exact label or cwd fr
 - `list -json`: lists sessions with filters such as `-provider`, `-cwd`, `-source`, `-query`, and `-limit`.
 - `inspect -json <session>`: returns full metadata for one session.
 - `fork`: calls `codex fork -c model_provider=<provider> <session-id>`.
+- `fork -C <dir>` / `fork --cd <dir>` / `fork --dir <dir>`: passes a target working directory to Codex for the forked session.
+- `fork --last`: asks Codex to fork the most recent session without resolving the session id first.
 - `trash`: moves a rollout file to the configured trash root while preserving relative path.
 - `recover`: restores a trashed rollout file.
 
