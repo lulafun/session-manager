@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+          - goos: linux
+            goarch: amd64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.7"
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o dist/session-manager .
+
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME:-snapshot}"
+          archive="session-manager_${version}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
+          package_dir="session-manager_${version}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "$package_dir"
+          cp dist/session-manager "$package_dir/session-manager"
+          cp README.md README_zh.md LICENSE "$package_dir/"
+          tar -czf "$archive" "$package_dir"
+          shasum -a 256 "$archive" > "$archive.sha256"
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            session-manager_*.tar.gz
+            session-manager_*.tar.gz.sha256
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
