@@ -49,6 +49,7 @@ go install github.com/lulafun/session-manager@latest
 - Do not delete, rewrite, or move rollout files with shell commands.
 - Use `session-manager trash` and `session-manager recover` for reversible changes.
 - Use `-dry-run` before `fork` or `trash` unless the user explicitly asked you to perform the change.
+- After any real `fork`, `trash`, or `recover`, verify the result with a read-only command before reporting success.
 - Default behavior hides subagent/internal sessions. Add `-include-subagents` only when the user asks to debug child sessions.
 - When the user asks to "delete", use `trash`, not `rm`.
 - When the user asks to "copy", "fork", "move to another provider", or "resume under another provider", use `fork`.
@@ -62,10 +63,60 @@ go install github.com/lulafun/session-manager@latest
 - User asks "find a session" -> run `session-manager list -query <text> -json`.
 - User asks "show details" -> run `session-manager inspect -json <session>`.
 - User asks "copy/fork to provider X" -> run `session-manager fork -to-provider X -dry-run <session>` first, then execute if confirmed or explicitly requested.
-- User asks "copy/fork current/latest session to project DIR" -> run `session-manager fork -to-provider <current-or-target-provider> --last -C DIR -dry-run` first, then execute if confirmed or explicitly requested.
+- User asks "copy/fork current/latest session to project DIR" -> first resolve the current/latest session id with `session-manager list -json -limit 1`, then run `session-manager fork -to-provider <current-or-target-provider> -C DIR -dry-run <session-id>` and execute if confirmed or explicitly requested. Use `--last` only as a fallback when an explicit id cannot be resolved.
 - User asks "copy/fork session S to project DIR" -> run `session-manager fork -to-provider <current-or-target-provider> -C DIR -dry-run S` first, then execute if confirmed or explicitly requested.
 - User asks "delete/remove a session" -> run `session-manager trash -dry-run <session>` first, then execute if confirmed or explicitly requested.
 - User asks "restore/recover" -> run `session-manager recover -dry-run <session>` first when possible.
+
+## Verification after changes
+
+Always verify state-changing commands.
+
+After `fork`:
+
+1. Capture the new session id printed by Codex, usually from `To continue this session, run codex resume <id>`.
+2. Run `session-manager inspect -json <new-session-id>` and confirm:
+   - `ForkedFromID` matches the source session id when available.
+   - `CWD` matches the requested target directory when `-C` was used.
+   - `ModelProvider` matches the requested provider.
+3. If no new session id is printed, verify by project/provider:
+
+   ```sh
+   session-manager projects sessions <target-dir> -provider <provider> -json -limit 5
+   ```
+
+4. If verification does not show the expected new session after a `--last` fork, do not report success. Resolve the source session id explicitly with:
+
+   ```sh
+   session-manager list -json -limit 1
+   ```
+
+   Then retry with the explicit id:
+
+   ```sh
+   session-manager fork -to-provider <provider> -C <target-dir> -dry-run <session-id>
+   session-manager fork -to-provider <provider> -C <target-dir> <session-id>
+   ```
+
+After `trash`:
+
+1. Confirm the original session no longer appears under the normal sessions root:
+
+   ```sh
+   session-manager inspect -json <session-id>
+   ```
+
+   This should fail when the session id only exists in trash.
+2. Confirm the session is visible under the trash root if needed:
+
+   ```sh
+   session-manager recover -dry-run <session-id-or-trashed-rollout-path>
+   ```
+
+After `recover`:
+
+1. Run `session-manager inspect -json <session-id>` and confirm the restored path is under `~/.codex/sessions`.
+2. If the session belongs to a specific project, run `session-manager projects sessions <project> -json` and confirm it appears.
 
 ## Common workflow
 
@@ -101,7 +152,7 @@ go install github.com/lulafun/session-manager@latest
    ```sh
    session-manager fork -to-provider <provider> -dry-run <session-id-or-rollout-path>
    session-manager fork -to-provider <provider> -C <target-dir> -dry-run <session-id-or-rollout-path>
-   session-manager fork -to-provider <provider> --last -C <target-dir> -dry-run
+   session-manager list -json -limit 1
    session-manager fork -to-provider <provider> <session-id-or-rollout-path>
    ```
 
@@ -135,6 +186,12 @@ For project fork/copy:
 I will dry-run a fork into <target-dir> using Codex's -C working-directory flag. I will not edit the rollout JSONL cwd manually.
 ```
 
+For fork verification failure:
+
+```text
+The fork command ran, but I cannot verify that a new session was created in the expected project. I will resolve the source session id explicitly and retry without --last.
+```
+
 For delete:
 
 ```text
@@ -157,7 +214,7 @@ The project selector matches multiple projects. I need the exact label or cwd fr
 - `inspect -json <session>`: returns full metadata for one session.
 - `fork`: calls `codex fork -c model_provider=<provider> <session-id>`.
 - `fork -C <dir>` / `fork --cd <dir>` / `fork --dir <dir>`: passes a target working directory to Codex for the forked session.
-- `fork --last`: asks Codex to fork the most recent session without resolving the session id first.
+- `fork --last`: asks Codex to fork the most recent session without resolving the session id first. Prefer explicit session ids for reliable automation; if `--last` verification fails, retry with the resolved session id.
 - `trash`: moves a rollout file to the configured trash root while preserving relative path.
 - `recover`: restores a trashed rollout file.
 
