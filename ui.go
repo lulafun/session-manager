@@ -370,13 +370,48 @@ type row struct {
 
 func (m UIModel) projectRows() []row {
 	rows := []row{{Text: fmt.Sprintf("All projects (%d)", len(m.allSessions)), Selected: m.projectIdx == 0}}
+	duplicateNames := duplicateProjectNames(m.projects)
 	for i, project := range m.projects {
 		rows = append(rows, row{
-			Text:     fmt.Sprintf("%s (%d)", project.Label, project.Count),
+			Text:     fmt.Sprintf("%s (%d)", projectDisplayName(project, duplicateNames), project.Count),
 			Selected: i+1 == m.projectIdx,
 		})
 	}
 	return rows
+}
+
+func duplicateProjectNames(projects []ProjectSummary) map[string]bool {
+	counts := map[string]int{}
+	for _, project := range projects {
+		counts[projectBaseName(project)]++
+	}
+	duplicates := map[string]bool{}
+	for name, count := range counts {
+		if count > 1 {
+			duplicates[name] = true
+		}
+	}
+	return duplicates
+}
+
+func projectDisplayName(project ProjectSummary, duplicateNames map[string]bool) string {
+	name := projectBaseName(project)
+	if !duplicateNames[name] {
+		return name
+	}
+	parent := filepath.Base(filepath.Dir(filepath.Clean(project.CWD)))
+	if parent == "." || parent == string(filepath.Separator) || parent == "" {
+		return name
+	}
+	return filepath.ToSlash(filepath.Join("...", parent, name))
+}
+
+func projectBaseName(project ProjectSummary) string {
+	name := filepath.Base(filepath.Clean(project.CWD))
+	if name == "." || name == string(filepath.Separator) || name == "" {
+		return project.Label
+	}
+	return name
 }
 
 func (m UIModel) providerRows() []row {

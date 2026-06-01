@@ -28,6 +28,41 @@ func TestRefreshSelectionAfterDeleteKeepsProjectAndProviderWhenAvailable(t *test
 	}
 }
 
+func TestProjectRowsDisplayOnlyLastDirectoryName(t *testing.T) {
+	model := NewUIModel([]Session{
+		{ID: "tool", Path: "/sessions/tool.jsonl", CWD: "/Users/lula/code/Tools/session-browser", ModelProvider: "p1"},
+	}, "/sessions", FilterOptions{}, nil)
+
+	rows := model.projectRows()
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2", len(rows))
+	}
+	if rows[1].Text != "session-browser (1)" {
+		t.Fatalf("project row = %q, want last directory name", rows[1].Text)
+	}
+}
+
+func TestProjectRowsDisambiguateDuplicateDirectoryNames(t *testing.T) {
+	model := NewUIModel([]Session{
+		{ID: "one", Path: "/sessions/one.jsonl", CWD: "/Users/lula/code/a/function", ModelProvider: "p1"},
+		{ID: "two", Path: "/sessions/two.jsonl", CWD: "/Users/lula/code/b/function", ModelProvider: "p1"},
+	}, "/sessions", FilterOptions{}, nil)
+
+	rows := model.projectRows()
+	if len(rows) != 3 {
+		t.Fatalf("len(rows) = %d, want 3", len(rows))
+	}
+	got := map[string]bool{
+		rows[1].Text: true,
+		rows[2].Text: true,
+	}
+	for _, want := range []string{".../a/function (1)", ".../b/function (1)"} {
+		if !got[want] {
+			t.Fatalf("project rows = %#v, missing %q", []string{rows[1].Text, rows[2].Text}, want)
+		}
+	}
+}
+
 func TestRefreshSelectionAfterDeleteFallsBackToProjectWhenProviderGone(t *testing.T) {
 	model := testUIModelForDelete()
 	model.projectIdx = firstProjectIndex(model.projects, "/repo/a")
